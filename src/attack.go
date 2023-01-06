@@ -58,14 +58,12 @@ func (n *Node) Receive() {
 }
 
 func (n *Node) handler(msg block) {
-	// fmt.Println("Node", n.id, "received message from node", msg.MinerId)
 	n.blockChainMutex.Lock()
 	flag := n.blockChain.append(&msg)
 	n.blockChainMutex.Unlock()
 	if flag {
 		n.flagMutex.Lock()
 		n.update = true
-		// fmt.Printf("node %d swtich to longest chain!\n", n.id)
 		n.flagMutex.Unlock()
 	}
 }
@@ -80,7 +78,7 @@ func (n *Node) Broadcast(msg block) {
 }
 
 func (n *Node) Mine() *block {
-	// 制造一个新的区块
+	// New block
 	newBlock := new(block)
 	newBlock.Timestamp = time.Now().UnixMilli()
 	newBlock.MinerId = n.id
@@ -97,16 +95,15 @@ func (n *Node) Mine() *block {
 		n.blockChainMutex.RLock()
 		interval := n.blockChain.statistics(n.blockChain.workspace)
 		n.blockChainMutex.RUnlock()
-		// fmt.Printf("INTERVAL = %d\n", interval)
 		if interval < 0.9*IntervalNum*Interval {
 			newBlock.DiffNum += 1
 		} else if interval > 1.1*IntervalNum*Interval {
 			newBlock.DiffNum -= 1
 		}
 	}
-	// 根据挖矿难度值计算的一个大数
-	newBigInt := big.NewInt(1)
-	newBigInt.Lsh(newBigInt, 256-newBlock.DiffNum) // 相当于左移 1<<256-diffNum
+	// Create a big integer by diffnum
+	newInt := big.NewInt(1)
+	newInt.Lsh(newInt, 256-newBlock.DiffNum) // 相当于左移 1<<256-diffNum
 	for {
 		n.flagMutex.RLock()
 		if n.update {
@@ -123,7 +120,7 @@ func (n *Node) Mine() *block {
 		hashBytes, _ := hex.DecodeString(newBlock.Hash)
 		hashInt.SetBytes(hashBytes) // 把本区块 hash 值转换为一串数字
 		// 如果 hash 小于挖矿难度值计算的一个大数，则代表挖矿成功
-		if hashInt.Cmp(newBigInt) == -1 {
+		if hashInt.Cmp(newInt) == -1 {
 			break
 		} else {
 			nonce++ // 不满足条件，则不断递增随机数，直到本区块的散列值小于指定的大数
@@ -294,7 +291,6 @@ func (a *Attacker) polt(msg ConspiratorialTarget) {
 }
 
 func (a *Attacker) Attack() *block {
-	// 制造一个新的区块
 	newBlock := new(block)
 	newBlock.Timestamp = time.Now().UnixMilli()
 	newBlock.MinerId = a.id
@@ -319,9 +315,9 @@ func (a *Attacker) Attack() *block {
 			newBlock.DiffNum -= 1
 		}
 	}
-	// 根据挖矿难度值计算的一个大数
-	newBigInt := big.NewInt(1)
-	newBigInt.Lsh(newBigInt, 256-newBlock.DiffNum) // 相当于左移 1<<256-diffNum
+	// Create a big integer by diffnum
+	newInt := big.NewInt(1)
+	newInt.Lsh(newInt, 256-newBlock.DiffNum) // 相当于左移 1<<256-diffNum
 	for {
 		a.flagMutex.RLock()
 		if a.update {
@@ -331,7 +327,6 @@ func (a *Attacker) Attack() *block {
 			a.flagMutex.Unlock()
 			a.blockChainMutex.RLock()
 			if a.blockChain.maxHeight > newBlock.Height+1 {
-				// fmt.Printf("Attacker %d CHOOSE TARGET!\n", a.secret_id)
 				a.targetMutex.Lock()
 				a.target = a.blockChain.workspace.parent
 				a.polt(ConspiratorialTarget{a.target.block, INIT})
@@ -356,12 +351,12 @@ func (a *Attacker) Attack() *block {
 		newBlock.getHash()
 		hashInt := big.Int{}
 		hashBytes, _ := hex.DecodeString(newBlock.Hash)
-		hashInt.SetBytes(hashBytes) // 把本区块 hash 值转换为一串数字
-		// 如果 hash 小于挖矿难度值计算的一个大数，则代表挖矿成功
-		if hashInt.Cmp(newBigInt) == -1 {
+		hashInt.SetBytes(hashBytes)
+		// hash < bigint --> success
+		if hashInt.Cmp(newInt) == -1 {
 			break
 		} else {
-			nonce++ // 不满足条件，则不断递增随机数，直到本区块的散列值小于指定的大数
+			nonce++ // not satisfied, make nonce bigger
 		}
 	}
 	if !newBlock.IsValid() {
@@ -402,8 +397,6 @@ func (m *Monitor) Receive() {
 
 func (m *Monitor) handler(msg block) {
 	m.blockChain.append(&msg)
-	// fmt.Printf("Avg Speed : %f ms/block.\n", float64(m.blockChain.workspace.block.UnixMilli-m.blockChain.root.block.UnixMilli)/float64(m.blockChain.maxHeight-1))
-	// fmt.Println(m.blockChain.workspace.block.Target)
 	fmt.Printf("%f\t%d\n", float64(m.blockChain.workspace.block.Timestamp-m.blockChain.root.block.Timestamp)/float64(m.blockChain.maxHeight-1),
-		m.blockChain.workspace.block.DiffNum)
+		m.blockChain.workspace.block.DiffNum) // Adding rate, and diffnum
 }
